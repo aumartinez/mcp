@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use Laravel\Mcp\Schema\Implementation;
 use Laravel\Mcp\Server\Contracts\Resources\Content;
 use Laravel\Mcp\Server\Resource;
 use Laravel\Mcp\Server\ServerContext;
-use Laravel\Mcp\Server\Transport\JsonRpcResponse;
+use Laravel\Mcp\Transport\JsonRpcResponse;
 use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as TestbenchTestCase;
 
@@ -20,8 +21,7 @@ abstract class TestCase extends TestbenchTestCase
         $properties = array_merge([
             'supportedProtocolVersions' => [],
             'serverCapabilities' => [],
-            'serverName' => 'test-server',
-            'serverVersion' => '1.0.0',
+            'implementation' => new Implementation('test-server', '1.0.0'),
             'instructions' => 'test-instructions',
             'maxPaginationLength' => 3,
             'defaultPaginationLength' => 3,

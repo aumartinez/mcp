@@ -1,10 +1,14 @@
 <?php
 
-use Laravel\Mcp\Server\Exceptions\JsonRpcException;
+use Laravel\Mcp\Exceptions\JsonRpcException;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Schema\Implementation;
 use Laravel\Mcp\Server\Methods\GetPrompt;
+use Laravel\Mcp\Server\Prompt;
 use Laravel\Mcp\Server\ServerContext;
-use Laravel\Mcp\Server\Transport\JsonRpcRequest;
-use Laravel\Mcp\Server\Transport\JsonRpcResponse;
+use Laravel\Mcp\Transport\JsonRpcRequest;
+use Laravel\Mcp\Transport\JsonRpcResponse;
 use Tests\Fixtures\PromptWithResultMetaPrompt;
 use Tests\Fixtures\ReviewMyCodePrompt;
 use Tests\Fixtures\TellMeHiPrompt;
@@ -23,8 +27,7 @@ it('returns a valid get prompt response', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -68,8 +71,7 @@ it('resolves the handle method from the IOC container', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -112,8 +114,7 @@ it('throws exception when name parameter is missing', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -144,8 +145,7 @@ it('throws exception when prompt not found', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -176,8 +176,7 @@ it('passes arguments to prompt handler', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -210,8 +209,7 @@ it('returns a prompt result with result-level meta when using ResponseFactory', 
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -248,4 +246,136 @@ it('returns a prompt result with result-level meta when using ResponseFactory', 
                 ],
             ],
         ]);
+});
+
+it('throws -32603 when prompt handler throws a generic exception', function (): void {
+    config(['app.debug' => true]);
+
+    $prompt = new class extends Prompt
+    {
+        protected string $description = 'Failing prompt';
+
+        public function handle(Request $request): Response
+        {
+            throw new RuntimeException('Unexpected failure.');
+        }
+    };
+
+    $promptClass = $prompt::class;
+    app()->instance($promptClass, $prompt);
+
+    $request = JsonRpcRequest::from([
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'prompts/get',
+        'params' => ['name' => $prompt->name(), 'arguments' => []],
+    ]);
+
+    $context = new ServerContext(
+        supportedProtocolVersions: ['2025-03-26'],
+        serverCapabilities: [],
+        implementation: new Implementation('Test Server', '1.0.0'),
+        instructions: '',
+        maxPaginationLength: 50,
+        defaultPaginationLength: 10,
+        tools: [],
+        resources: [],
+        prompts: [$promptClass],
+    );
+
+    try {
+        (new GetPrompt)->handle($request, $context);
+        $this->fail('Expected JsonRpcException to be thrown');
+    } catch (JsonRpcException $jsonRpcException) {
+        expect($jsonRpcException->getCode())->toBe(-32603)
+            ->and($jsonRpcException->getMessage())->toContain('Unexpected failure.');
+    }
+});
+
+it('includes exception message in prompt error when APP_DEBUG is true', function (): void {
+    config(['app.debug' => true]);
+
+    $prompt = new class extends Prompt
+    {
+        protected string $description = 'Failing prompt';
+
+        public function handle(Request $request): Response
+        {
+            throw new RuntimeException('Debug me.');
+        }
+    };
+
+    $promptClass = $prompt::class;
+    app()->instance($promptClass, $prompt);
+
+    $request = JsonRpcRequest::from([
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'prompts/get',
+        'params' => ['name' => $prompt->name(), 'arguments' => []],
+    ]);
+
+    $context = new ServerContext(
+        supportedProtocolVersions: ['2025-03-26'],
+        serverCapabilities: [],
+        implementation: new Implementation('Test Server', '1.0.0'),
+        instructions: '',
+        maxPaginationLength: 50,
+        defaultPaginationLength: 10,
+        tools: [],
+        resources: [],
+        prompts: [$promptClass],
+    );
+
+    try {
+        (new GetPrompt)->handle($request, $context);
+        $this->fail('Expected JsonRpcException to be thrown');
+    } catch (JsonRpcException $jsonRpcException) {
+        expect($jsonRpcException->getCode())->toBe(-32603)
+            ->and($jsonRpcException->getMessage())->toBe('Debug me.');
+    }
+});
+
+it('returns plain message in prompt error when APP_DEBUG is false', function (): void {
+    config(['app.debug' => false]);
+
+    $prompt = new class extends Prompt
+    {
+        protected string $description = 'Failing prompt';
+
+        public function handle(Request $request): Response
+        {
+            throw new RuntimeException('Plain message only.');
+        }
+    };
+
+    $promptClass = $prompt::class;
+    app()->instance($promptClass, $prompt);
+
+    $request = JsonRpcRequest::from([
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'prompts/get',
+        'params' => ['name' => $prompt->name(), 'arguments' => []],
+    ]);
+
+    $context = new ServerContext(
+        supportedProtocolVersions: ['2025-03-26'],
+        serverCapabilities: [],
+        implementation: new Implementation('Test Server', '1.0.0'),
+        instructions: '',
+        maxPaginationLength: 50,
+        defaultPaginationLength: 10,
+        tools: [],
+        resources: [],
+        prompts: [$promptClass],
+    );
+
+    try {
+        (new GetPrompt)->handle($request, $context);
+        $this->fail('Expected JsonRpcException to be thrown');
+    } catch (JsonRpcException $jsonRpcException) {
+        expect($jsonRpcException->getCode())->toBe(-32603)
+            ->and($jsonRpcException->getMessage())->toBe('An internal server error occurred.');
+    }
 });

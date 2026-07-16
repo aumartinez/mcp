@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Mcp\Server\Registrar;
 use Laravel\Passport\ClientRepository;
 use Laravel\Passport\Passport;
@@ -13,6 +16,69 @@ function ensureMockClientRepository(): void
     if (! class_exists(ClientRepository::class)) {
         require_once __DIR__.'/../../Fixtures/PassportClientRepository.php';
     }
+}
+
+function createOauthClientsTable(bool $withScopesColumn, ?string $scopesDefault = null): void
+{
+    Schema::dropIfExists('oauth_clients');
+    Schema::create('oauth_clients', function (Blueprint $table) use ($withScopesColumn, $scopesDefault): void {
+        $table->string('id')->primary();
+        $table->string('name');
+        $table->json('grant_types');
+        $table->json('redirect_uris');
+
+        if ($withScopesColumn && $scopesDefault !== null) {
+            $table->json('scopes')->default($scopesDefault);
+        } elseif ($withScopesColumn) {
+            $table->json('scopes')->nullable();
+        }
+    });
+}
+
+function databaseClientRepository(?array $initialScopes = null): object
+{
+    $prototype = new class extends Model
+    {
+        public $incrementing = false;
+
+        public $timestamps = false;
+
+        protected $guarded = [];
+
+        protected $keyType = 'string';
+
+        protected $table = 'oauth_clients';
+
+        protected function casts(): array
+        {
+            return [
+                'grant_types' => 'array',
+                'redirect_uris' => 'array',
+                'scopes' => 'array',
+            ];
+        }
+    };
+
+    return new class($prototype, $initialScopes)
+    {
+        public Model $client;
+
+        public function __construct(protected Model $prototype, protected ?array $initialScopes = null) {}
+
+        public function createAuthorizationCodeGrantClient(string $name, array $redirectUris, bool $confidential = true, $user = null, bool $enableDeviceFlow = false): Model
+        {
+            $client = $this->prototype->newInstance([
+                'id' => 'test-client-id',
+                'name' => $name,
+                'grant_types' => ['authorization_code'],
+                'redirect_uris' => $redirectUris,
+                ...($this->initialScopes === null ? [] : ['scopes' => $this->initialScopes]),
+            ]);
+            $client->save();
+
+            return $this->client = $client;
+        }
+    };
 }
 
 it('registers a local server and retrieves it', function (): void {
@@ -165,6 +231,19 @@ it('does not override an existing exact oauth protected resource route', functio
     ]);
 });
 
+it('resolves the nested protected resource path when a route parameter precedes it', function (): void {
+    Route::group(['domain' => '{account}.example.com'], function (): void {
+        (new Registrar)->oauthRoutes();
+    });
+
+    $response = $this->getJson('http://tenant.example.com/.well-known/oauth-protected-resource/mcp/server');
+
+    $response->assertStatus(200);
+    $response->assertJson([
+        'resource' => 'http://tenant.example.com/mcp/server',
+    ]);
+});
+
 it('adds mcp scope when passport is available', function (): void {
     if (! class_exists(Passport::class)) {
         require_once __DIR__.'/../../Fixtures/PassportPassport.php';
@@ -210,7 +289,7 @@ it('handles oauth registration endpoint', function (): void {
         'redirect_uris' => ['http://localhost:3000/callback'],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
     $response->assertJson([
         'client_id' => 'test-client-id',
         'grant_types' => ['authorization_code'],
@@ -221,7 +300,110 @@ it('handles oauth registration endpoint', function (): void {
     ]);
 });
 
-it('requires an oauth client name for registration', function (): void {
+it('persists the advertised mcp scope when passport clients are scope-restricted by default', function (): void {
+    ensureMockClientRepository();
+
+    createOauthClientsTable(withScopesColumn: true, scopesDefault: '[]');
+    $clientRepository = databaseClientRepository();
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, $clientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => 'Test Client',
+        'redirect_uris' => ['http://localhost:3000/callback'],
+    ]);
+
+    $response->assertStatus(201);
+    $response->assertJson(['scope' => 'mcp:use']);
+
+    expect($clientRepository->client->fresh()?->scopes)->toBe(['mcp:use']);
+});
+
+it('preserves scopes granted at creation when persisting the mcp scope', function (): void {
+    ensureMockClientRepository();
+
+    createOauthClientsTable(withScopesColumn: true);
+    $clientRepository = databaseClientRepository(initialScopes: ['custom:scope']);
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, $clientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => 'Test Client',
+        'redirect_uris' => ['http://localhost:3000/callback'],
+    ]);
+
+    $response->assertStatus(201);
+
+    expect($clientRepository->client->fresh()?->scopes)->toBe(['custom:scope', 'mcp:use']);
+});
+
+it('does not duplicate the mcp scope when it was already granted at creation', function (): void {
+    ensureMockClientRepository();
+
+    createOauthClientsTable(withScopesColumn: true);
+    $clientRepository = databaseClientRepository(initialScopes: ['mcp:use']);
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, $clientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => 'Test Client',
+        'redirect_uris' => ['http://localhost:3000/callback'],
+    ]);
+
+    $response->assertStatus(201);
+
+    expect($clientRepository->client->fresh()?->scopes)->toBe(['mcp:use']);
+});
+
+it('leaves passport clients unrestricted when the scopes value is null', function (): void {
+    ensureMockClientRepository();
+
+    createOauthClientsTable(withScopesColumn: true);
+    $clientRepository = databaseClientRepository();
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, $clientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => 'Test Client',
+        'redirect_uris' => ['http://localhost:3000/callback'],
+    ]);
+
+    $response->assertStatus(201);
+    $response->assertJson(['scope' => 'mcp:use']);
+
+    expect($clientRepository->client->fresh()?->scopes)->toBeNull();
+});
+
+it('leaves passport clients unrestricted when client scopes are not enabled', function (): void {
+    ensureMockClientRepository();
+
+    createOauthClientsTable(withScopesColumn: false);
+    $clientRepository = databaseClientRepository();
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, $clientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => 'Test Client',
+        'redirect_uris' => ['http://localhost:3000/callback'],
+    ]);
+
+    $response->assertStatus(201);
+    $response->assertJson(['scope' => 'mcp:use']);
+
+    expect($clientRepository->client->fresh()?->getAttributes())->not->toHaveKey('scopes');
+});
+
+it('falls back to the redirect host when no client name is provided', function (): void {
     $clientRepository = new class
     {
         public ?string $capturedName = null;
@@ -244,13 +426,63 @@ it('requires an oauth client name for registration', function (): void {
     $this->app->instance(ClientRepository::class, $clientRepository);
 
     $response = $this->postJson('/oauth/register', [
-        'redirect_uris' => ['http://localhost:3000/callback'],
+        'redirect_uris' => ['https://example.com/callback'],
+    ]);
+
+    $response->assertStatus(201);
+
+    expect($clientRepository->capturedName)->toBe('example.com');
+});
+
+it('returns invalid_client_metadata when client metadata is invalid', function (): void {
+    ensureMockClientRepository();
+
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, new ClientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => str_repeat('a', 256),
+        'redirect_uris' => ['https://example.com/callback'],
     ]);
 
     $response->assertStatus(400);
     $response->assertJson([
         'error' => 'invalid_client_metadata',
     ]);
+});
+
+it('preserves a falsy client name for oauth registration', function (): void {
+    $clientRepository = new class
+    {
+        public ?string $capturedName = null;
+
+        public function createAuthorizationCodeGrantClient(string $name, array $redirectUris, bool $confidential = true, $user = null, bool $enableDeviceFlow = false)
+        {
+            $this->capturedName = $name;
+
+            return (object) [
+                'id' => 'test-client-id',
+                'grant_types' => ['authorization_code'],
+                'redirect_uris' => $redirectUris,
+            ];
+        }
+    };
+
+    $registrar = new Registrar;
+    $registrar->oauthRoutes();
+
+    $this->app->instance(ClientRepository::class, $clientRepository);
+
+    $response = $this->postJson('/oauth/register', [
+        'client_name' => '0',
+        'redirect_uris' => ['https://example.com/callback'],
+    ]);
+
+    $response->assertStatus(201);
+
+    expect($clientRepository->capturedName)->toBe('0');
 });
 
 it('falls back to the legacy name field for oauth registration', function (): void {
@@ -280,7 +512,7 @@ it('falls back to the legacy name field for oauth registration', function (): vo
         'redirect_uris' => ['http://localhost:3000/callback'],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
 
     expect($clientRepository->capturedName)->toBe('Legacy Client');
 });
@@ -313,7 +545,7 @@ it('prefers client_name over name for oauth registration', function (): void {
         'redirect_uris' => ['http://localhost:3000/callback'],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
 
     expect($clientRepository->capturedName)->toBe('Preferred Client');
 });
@@ -333,7 +565,7 @@ it('handles oauth registration with allowed domains', function (): void {
         'redirect_uris' => ['http://localhost:3000/callback'],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
     $response->assertJson([
         'client_id' => 'test-client-id',
         'grant_types' => ['authorization_code'],
@@ -359,7 +591,7 @@ it('allows localhost with dynamic port when localhost is in redirect_domains', f
         'redirect_uris' => [$uri],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
 })->with([
     'localhost' => ['http://localhost:18293/callback'],
     '127.0.0.1' => ['http://127.0.0.1:29100/callback'],
@@ -439,7 +671,7 @@ it('allows all localhost hosts when any localhost variant is in redirect_domains
         'redirect_uris' => ['http://localhost:18293/callback'],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
 })->with([
     'http://127.0.0.1' => ['http://127.0.0.1'],
     'http://[::1]' => ['http://[::1]'],
@@ -607,7 +839,7 @@ it('accepts custom scheme redirect URIs when the scheme is configured', function
         'redirect_uris' => [$uri],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
     $response->assertJson([
         'client_id' => 'test-client-id',
         'redirect_uris' => [$uri],
@@ -687,7 +919,7 @@ it('still allows standard http URLs when custom schemes are configured', functio
         'redirect_uris' => ['http://localhost:3000/callback'],
     ]);
 
-    $response->assertStatus(200);
+    $response->assertStatus(201);
 });
 
 it('returns json validation errors even without Accept application/json header', function (): void {
@@ -699,7 +931,7 @@ it('returns json validation errors even without Accept application/json header',
     $this->app->instance(ClientRepository::class, new ClientRepository);
 
     $response = $this->post('/oauth/register', [
-        'redirect_uris' => ['http://localhost:3000/callback'],
+        'redirect_uris' => ['not-a-valid-url'],
     ], ['Accept' => '*/*']);
 
     $response->assertStatus(400);

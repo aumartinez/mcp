@@ -3,15 +3,17 @@
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Exceptions\JsonRpcException;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
-use Laravel\Mcp\Server\Exceptions\JsonRpcException;
+use Laravel\Mcp\Schema\Implementation;
 use Laravel\Mcp\Server\Methods\CallTool;
 use Laravel\Mcp\Server\ServerContext;
 use Laravel\Mcp\Server\Tool;
-use Laravel\Mcp\Server\Transport\JsonRpcRequest;
-use Laravel\Mcp\Server\Transport\JsonRpcResponse;
+use Laravel\Mcp\Transport\JsonRpcRequest;
+use Laravel\Mcp\Transport\JsonRpcResponse;
 use Tests\Fixtures\CurrentTimeTool;
+use Tests\Fixtures\ResourceLinkTool;
 use Tests\Fixtures\ResponseFactoryWithStructuredContentTool;
 use Tests\Fixtures\SayHiTool;
 use Tests\Fixtures\SayHiTwiceTool;
@@ -35,8 +37,7 @@ it('returns a valid call tool response', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -80,8 +81,7 @@ it('returns a valid call tool response that contains two messages', function ():
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -129,8 +129,7 @@ it('returns a valid call tool response with validation error', function (): void
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -190,8 +189,7 @@ it('returns a valid call tool response with authorization error', function (): v
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -253,8 +251,7 @@ it('returns a valid call tool response with authentication error', function (): 
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -318,8 +315,7 @@ it('returns a valid call tool response with authorization error from generator t
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -385,8 +381,7 @@ it('returns a valid call tool response with authentication error from generator 
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -432,8 +427,7 @@ it('includes result meta when responses provide it', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -481,8 +475,7 @@ it('may resolve dependencies out of the container', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -519,8 +512,7 @@ it('returns a result with result-level meta when using ResponseFactory', functio
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -572,8 +564,7 @@ it('separates content-level meta from result-level meta', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -629,8 +620,7 @@ it('returns structured content in tool response', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -675,8 +665,7 @@ it('returns structured content with meta in tool response', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -719,8 +708,7 @@ it('returns ResponseFactory with structured content added via withStructuredCont
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -763,8 +751,7 @@ it('throws an exception when the name parameter is missing', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -796,8 +783,7 @@ it('throws an exception when the tool is not found', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test Server',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test Server', '1.0.0'),
         instructions: 'Test instructions',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -847,8 +833,7 @@ it('does not set uri on request when calling tools', function (): void {
     $context = new ServerContext(
         supportedProtocolVersions: ['2025-03-26'],
         serverCapabilities: [],
-        serverName: 'Test',
-        serverVersion: '1.0.0',
+        implementation: new Implementation('Test', '1.0.0'),
         instructions: '',
         maxPaginationLength: 50,
         defaultPaginationLength: 10,
@@ -866,4 +851,54 @@ it('does not set uri on request when calling tools', function (): void {
         ->and($payload['result']['content'])->toHaveCount(1)
         ->and($payload['result']['content'][0]['type'])->toBe('text')
         ->and($payload['result']['content'][0]['text'])->toBe('null');
+});
+
+it('returns a resource link content block in the wire payload', function (): void {
+    $request = JsonRpcRequest::from([
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'tools/call',
+        'params' => [
+            'name' => 'resource-link-tool',
+            'arguments' => [],
+        ],
+    ]);
+
+    $context = new ServerContext(
+        supportedProtocolVersions: ['2025-03-26'],
+        serverCapabilities: [],
+        implementation: new Implementation('Test Server', '1.0.0'),
+        instructions: 'Test instructions',
+        maxPaginationLength: 50,
+        defaultPaginationLength: 10,
+        tools: [ResourceLinkTool::class],
+        resources: [],
+        prompts: [],
+    );
+
+    $this->instance('mcp.request', $request->toRequest());
+
+    $method = new CallTool;
+    $payload = $method->handle($request, $context)->toArray();
+
+    expect($payload['id'])->toEqual(1)
+        ->and($payload['result'])->toEqual([
+            'content' => [
+                [
+                    'type' => 'resource_link',
+                    'uri' => 'file:///reports/monthly.pdf',
+                    'name' => 'monthly-report',
+                    'title' => 'Monthly Report',
+                    'description' => 'Sales rollup by region.',
+                    'mimeType' => 'application/pdf',
+                    'size' => 2048,
+                    'annotations' => [
+                        'audience' => ['user'],
+                        'priority' => 0.9,
+                        'lastModified' => '2026-05-07T12:00:00Z',
+                    ],
+                ],
+            ],
+            'isError' => false,
+        ]);
 });

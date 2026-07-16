@@ -5,11 +5,17 @@ declare(strict_types=1);
 use Laravel\Mcp\Enums\Role;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
+use Laravel\Mcp\Schema\Icon;
+use Laravel\Mcp\Server\Attributes\Icon as IconAttribute;
 use Laravel\Mcp\Server\Content\Audio;
 use Laravel\Mcp\Server\Content\Blob;
 use Laravel\Mcp\Server\Content\Image;
 use Laravel\Mcp\Server\Content\Notification;
+use Laravel\Mcp\Server\Content\ResourceLink;
 use Laravel\Mcp\Server\Content\Text;
+use Laravel\Mcp\Server\Resource;
+use Tests\Fixtures\AnnotatedResource;
+use Tests\Fixtures\DailyPlanResource;
 
 it('creates a notification response', function (): void {
     $response = Response::notification('test.method', ['key' => 'value']);
@@ -276,3 +282,172 @@ it('creates compact json response', function (): void {
     expect($content)->toBe('{"key":"value","number":123}')
         ->and($content)->not->toContain("\n");
 });
+
+it('creates a resource link from a uri string', function (): void {
+    $response = Response::resourceLink(
+        'file:///data/report.json',
+        'Monthly Report',
+        'application/json',
+        description: 'Generated sales report',
+    );
+
+    expect($response->content()->toArray())->toEqual([
+        'type' => 'resource_link',
+        'uri' => 'file:///data/report.json',
+        'name' => 'Monthly Report',
+        'description' => 'Generated sales report',
+        'mimeType' => 'application/json',
+    ]);
+});
+
+it('requires a name when creating a resource link from a uri string', function (): void {
+    expect(fn (): Response => Response::resourceLink('file:///data/report.json'))
+        ->toThrow(InvalidArgumentException::class, 'Resource link name is required when using a URI string.');
+});
+
+it('creates a resource link from a Resource class-string', function (): void {
+    $response = Response::resourceLink(DailyPlanResource::class);
+
+    $payload = $response->content()->toArray();
+
+    expect($payload['type'])->toBe('resource_link')
+        ->and($payload['uri'])->toBe((new DailyPlanResource)->uri())
+        ->and($payload['name'])->toBe((new DailyPlanResource)->name())
+        ->and($payload['mimeType'])->toBe((new DailyPlanResource)->mimeType());
+});
+
+it('creates a resource link from a Resource instance', function (): void {
+    $resource = new DailyPlanResource;
+    $response = Response::resourceLink($resource);
+
+    expect($response->content()->toArray()['uri'])->toBe($resource->uri());
+});
+
+it('inherits annotations from a Resource', function (): void {
+    $response = Response::resourceLink(AnnotatedResource::class);
+
+    expect($response->content()->toArray()['annotations'])->toEqual([
+        'audience' => ['user'],
+        'priority' => 0.7,
+        'lastModified' => '2026-05-01T00:00:00Z',
+    ]);
+});
+
+it('wraps a pre-built ResourceLink instance', function (): void {
+    $link = new ResourceLink(
+        'file:///data/report.json',
+        'Monthly Report',
+        annotations: [
+            'audience' => ['user', 'assistant'],
+            'priority' => 0.9,
+            'lastModified' => '2026-05-07T12:00:00Z',
+        ],
+    );
+
+    $response = Response::resourceLink($link);
+
+    expect($response->content())->toBe($link)
+        ->and($response->content()->toArray())->toEqual([
+            'type' => 'resource_link',
+            'uri' => 'file:///data/report.json',
+            'name' => 'Monthly Report',
+            'annotations' => [
+                'audience' => ['user', 'assistant'],
+                'priority' => 0.9,
+                'lastModified' => '2026-05-07T12:00:00Z',
+            ],
+        ]);
+});
+
+it('allows overriding fields when given a Resource', function (): void {
+    $response = Response::resourceLink(
+        DailyPlanResource::class,
+        title: 'Custom Title',
+        size: 4096,
+    );
+
+    $payload = $response->content()->toArray();
+
+    expect($payload['title'])->toBe('Custom Title')
+        ->and($payload['size'])->toBe(4096);
+});
+
+it('inherits icons from a Resource when none are provided', function (): void {
+    $resource = new class extends Resource
+    {
+        protected string $uri = 'file://resources/iconic';
+
+        public function handle(): string
+        {
+            return 'content';
+        }
+
+        public function icons(): array
+        {
+            return [new Icon('https://example.com/resource.png', mimeType: 'image/png')];
+        }
+    };
+
+    $response = Response::resourceLink($resource);
+
+    expect($response->content()->toArray()['icons'])->toBe([
+        ['src' => 'https://example.com/resource.png', 'mimeType' => 'image/png'],
+    ]);
+});
+
+it('inherits Icon attributes from a Resource when none are provided', function (): void {
+    $response = Response::resourceLink(new ResponseResourceWithIconAttribute);
+
+    expect($response->content()->toArray()['icons'])->toBe([
+        ['src' => 'https://example.com/attribute-resource.png', 'mimeType' => 'image/png'],
+    ]);
+});
+
+it('lets explicit icons override the Resource icons', function (): void {
+    $resource = new class extends Resource
+    {
+        protected string $uri = 'file://resources/iconic';
+
+        public function handle(): string
+        {
+            return 'content';
+        }
+
+        public function icons(): array
+        {
+            return [new Icon('https://example.com/inherited.png')];
+        }
+    };
+
+    $response = Response::resourceLink(
+        $resource,
+        icons: [new Icon('https://example.com/override.png', mimeType: 'image/png')],
+    );
+
+    expect($response->content()->toArray()['icons'])->toBe([
+        ['src' => 'https://example.com/override.png', 'mimeType' => 'image/png'],
+    ]);
+});
+
+it('attaches icons to a resource link built from a URI string', function (): void {
+    $response = Response::resourceLink(
+        'https://example.com/data.json',
+        name: 'Dataset',
+        icons: [new Icon('https://example.com/data.png', mimeType: 'image/png')],
+    );
+
+    expect($response->content()->toArray()['icons'])->toBe([
+        ['src' => 'https://example.com/data.png', 'mimeType' => 'image/png'],
+    ]);
+});
+
+#[IconAttribute('https://example.com/attribute-resource.png', mimeType: 'image/png')]
+class ResponseResourceWithIconAttribute extends Resource
+{
+    protected string $uri = 'file://resources/icon-attribute';
+
+    public function handle(): string
+    {
+        return 'content';
+    }
+}

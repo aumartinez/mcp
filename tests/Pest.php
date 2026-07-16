@@ -15,6 +15,7 @@ uses(TestCase::class)
         }
 
         config()->set('app.debug', true);
+        config()->set('cache.default', 'array');
     })->in('Unit', 'Feature');
 
 /*
@@ -49,6 +50,28 @@ function initializeMessage(): array
         'method' => 'initialize',
         'params' => [],
     ];
+}
+
+function initializeResponse(): string
+{
+    return json_encode([
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'result' => [
+            'protocolVersion' => '2025-11-25',
+            'capabilities' => new stdClass,
+            'serverInfo' => ['name' => 'Test Server', 'version' => '1.0.0'],
+        ],
+    ]);
+}
+
+function pingResponse(int $id): string
+{
+    return json_encode([
+        'jsonrpc' => '2.0',
+        'id' => $id,
+        'result' => new stdClass,
+    ]);
 }
 
 function expectedInitializeResponse(): array
@@ -314,6 +337,13 @@ function parseJsonRpcMessagesFromSseStream(string $content): array
     }
 
     return $messages;
+}
+
+function sseStream(array $frames): string
+{
+    return collect($frames)
+        ->map(fn (array $frame): string => 'data: '.json_encode($frame)."\n\n")
+        ->implode('');
 }
 
 function parseJsonRpcMessagesFromStdout(string $output): array

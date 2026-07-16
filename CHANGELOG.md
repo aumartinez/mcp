@@ -1,6 +1,144 @@
 # Release Notes
 
-## [Unreleased](https://github.com/laravel/mcp/compare/v0.7.0...main)
+## [Unreleased](https://github.com/laravel/mcp/compare/v0.9.0...main)
+
+## [v0.9.0](https://github.com/laravel/mcp/compare/v0.8.2...v0.9.0) - 2026-07-16
+
+### What's Changed
+
+* Use negotiated MCP protocol version for HTTP client requests by [@andrew-downey](https://github.com/andrew-downey) in https://github.com/laravel/mcp/pull/257
+* Improve test error when unexpected errors are found in response by [@axlon](https://github.com/axlon) in https://github.com/laravel/mcp/pull/259
+* Fix schema return type in tool stub by [@axlon](https://github.com/axlon) in https://github.com/laravel/mcp/pull/261
+* Bump stefanzweifel/git-auto-commit-action from 7.1.0 to 7.2.0 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/laravel/mcp/pull/263
+* Bump stefanzweifel/git-auto-commit-action from 7.1.0 to 7.2.0 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/laravel/mcp/pull/264
+* Fix nested OAuth resource path with preceding route parameters by [@lazerg](https://github.com/lazerg) in https://github.com/laravel/mcp/pull/262
+* Add `#[SensitiveParameter]` to parameters carrying secrets by [@axlon](https://github.com/axlon) in https://github.com/laravel/mcp/pull/265
+* Fix CursorPaginator returning trailing items for a negative cursor offset by [@dfinchenko](https://github.com/dfinchenko) in https://github.com/laravel/mcp/pull/267
+* Update phpdoc for assertStructuredContent by [@chrisvanlier2005](https://github.com/chrisvanlier2005) in https://github.com/laravel/mcp/pull/268
+* Fix DCR scope persistence for Passport clients by [@Gujiassh](https://github.com/Gujiassh) in https://github.com/laravel/mcp/pull/270
+* Serialize structured content before asserting by [@chrisvanlier2005](https://github.com/chrisvanlier2005) in https://github.com/laravel/mcp/pull/269
+
+### New Contributors
+
+* [@andrew-downey](https://github.com/andrew-downey) made their first contribution in https://github.com/laravel/mcp/pull/257
+* [@axlon](https://github.com/axlon) made their first contribution in https://github.com/laravel/mcp/pull/259
+* [@dfinchenko](https://github.com/dfinchenko) made their first contribution in https://github.com/laravel/mcp/pull/267
+* [@chrisvanlier2005](https://github.com/chrisvanlier2005) made their first contribution in https://github.com/laravel/mcp/pull/268
+
+**Full Changelog**: https://github.com/laravel/mcp/compare/v0.8.2...v0.9.0
+
+### Upgrading To v0.9.0 From v0.8.0
+
+<a name="custom-client-transports"></a>
+
+#### Custom Client Transports
+
+**Likelihood Of Impact: low**
+
+The `Laravel\Mcp\Client\Contracts\Transport` contract now requires a `setProtocolVersion` method. The client calls this method after the `initialize` handshake so the transport can send the negotiated protocol version on subsequent requests.
+
+If your application implements this contract, add the method to your transport:
+
+```php
+public function setProtocolVersion(string $version): void
+{
+    $this->protocolVersion = $version;
+}
+
+
+```
+Transports that do not send per-request headers may implement the method as a no-op, as the first-party `StdioTransport` does.
+
+<a name="client-protocol-version-negotiation"></a>
+
+#### Client Protocol Version Negotiation
+
+**Likelihood Of Impact: Medium**
+
+The MCP client now validates the negotiated protocol version against the new `ProtocolVersion::clientSupported()` method rather than `ProtocolVersion::supported()`. The client supports `2025-11-25` and `2025-06-18`.
+
+Connecting to a server that negotiates `2025-03-26` or `2024-11-05` previously succeeded and will now throw a `Laravel\Mcp\Exceptions\ClientException`.
+The `ProtocolVersion::supported()` method is unchanged and still reports every version the *server* accepts.
+
+## [v0.8.2](https://github.com/laravel/mcp/compare/v0.8.1...v0.8.2) - 2026-06-25
+
+### What's Changed
+
+* Bump shivammathur/setup-php from 2.37.1 to 2.37.2 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/laravel/mcp/pull/252
+* feat: compute default AppResource ui.domain from current URL for Claude compatibility by [@cirolosapio](https://github.com/cirolosapio) in https://github.com/laravel/mcp/pull/231
+* Bump actions/checkout from 6.0.3 to 7.0.0 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/laravel/mcp/pull/255
+* Allow OAuth client registration without a client name by [@lazerg](https://github.com/lazerg) in https://github.com/laravel/mcp/pull/254
+
+### New Contributors
+
+* [@cirolosapio](https://github.com/cirolosapio) made their first contribution in https://github.com/laravel/mcp/pull/231
+* [@lazerg](https://github.com/lazerg) made their first contribution in https://github.com/laravel/mcp/pull/254
+
+**Full Changelog**: https://github.com/laravel/mcp/compare/v0.8.1...v0.8.2
+
+## [v0.8.1](https://github.com/laravel/mcp/compare/v0.8.0...v0.8.1) - 2026-06-11
+
+### What's Changed
+
+* Add resources support to the MCP client by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/243
+* feat: automatically convert model not found exceptions to proper error messages by [@calebdw](https://github.com/calebdw) in https://github.com/laravel/mcp/pull/244
+* Add withHeaders() to the MCP web client by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/250
+* Bump actions/checkout from 6.0.2 to 6.0.3 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/laravel/mcp/pull/251
+* Centralize exception handling in method handlers with debug-aware errors by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/249
+
+### New Contributors
+
+* [@calebdw](https://github.com/calebdw) made their first contribution in https://github.com/laravel/mcp/pull/244
+
+**Full Changelog**: https://github.com/laravel/mcp/compare/v0.8.0...v0.8.1
+
+## [v0.8.0](https://github.com/laravel/mcp/compare/v0.7.2...v0.8.0) - 2026-06-08
+
+### What's Changed
+
+* Add MCP client tool listing and calling by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/226
+* Add MCP client Streamable HTTP transport by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/227
+* Add named MCP clients with tool list caching by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/228
+* Extract caching into RegisteredClient by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/230
+* GitHub Actions hardening by [@nunomaduro](https://github.com/nunomaduro) in https://github.com/laravel/mcp/pull/234
+* Remove MCP client tool-list caching layer by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/235
+* Add Dependabot cooldown of 5 days by [@nunomaduro](https://github.com/nunomaduro) in https://github.com/laravel/mcp/pull/237
+* Enable Dependabot auto-merge by [@nunomaduro](https://github.com/nunomaduro) in https://github.com/laravel/mcp/pull/238
+* Make MCP client tools cacheable via recipe serialization by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/239
+* Add OAuth layer for MCP web client by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/233
+* Fix Mcp alias: correct facade class name by [@adelf](https://github.com/adelf) in https://github.com/laravel/mcp/pull/241
+* Add prompts support to the MCP client by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/242
+
+### New Contributors
+
+* [@adelf](https://github.com/adelf) made their first contribution in https://github.com/laravel/mcp/pull/241
+
+**Full Changelog**: https://github.com/laravel/mcp/compare/v0.7.2...v0.8.0
+
+## [v0.7.2](https://github.com/laravel/mcp/compare/v0.7.1...v0.7.2) - 2026-05-22
+
+### What's Changed
+
+* return $this from ->dump() by [@Gummibeer](https://github.com/Gummibeer) in https://github.com/laravel/mcp/pull/223
+* Resolve URI template variables when testing resources by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/225
+* Add MCP client foundation with stdio transport and ping by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/216
+
+### New Contributors
+
+* [@Gummibeer](https://github.com/Gummibeer) made their first contribution in https://github.com/laravel/mcp/pull/223
+
+**Full Changelog**: https://github.com/laravel/mcp/compare/v0.7.1...v0.7.2
+
+## [v0.7.1](https://github.com/laravel/mcp/compare/v0.7.0...v0.7.1) - 2026-05-19
+
+* Return 201 from OAuth client registration per RFC 7591 by [@danniehansen](https://github.com/danniehansen) in https://github.com/laravel/mcp/pull/207
+* Fix TypeError when JSON-RPC request id is not a string or int by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/208
+* Add ResourceLink content type (MCP spec 2025-06-18) by [@rupeshstha](https://github.com/rupeshstha) in https://github.com/laravel/mcp/pull/200
+* Extract JSON-RPC primitives to shared namespace for client reuse by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/211
+* Pin GitHub Actions to commit SHAs and add Dependabot config by [@joetannenbaum](https://github.com/joetannenbaum) in https://github.com/laravel/mcp/pull/213
+* Bump shivammathur/setup-php from 2.37.0 to 2.37.1 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/laravel/mcp/pull/214
+* Extract protocol versions to shared enum for client reuse by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/215
+* Add Icon and Implementation (MCP spec 2025-11-25) by [@pushpak1300](https://github.com/pushpak1300) in https://github.com/laravel/mcp/pull/219
 
 ## [v0.7.0](https://github.com/laravel/mcp/compare/v0.6.7...v0.7.0) - 2026-04-21
 
@@ -215,6 +353,12 @@ public function schema(JsonSchema $schema): array
 
 
 
+
+
+
+
+
+
 ```
 **After**
 
@@ -225,6 +369,12 @@ public function schema(JsonSchema $schema): array
 {
     //
 }
+
+
+
+
+
+
 
 
 
